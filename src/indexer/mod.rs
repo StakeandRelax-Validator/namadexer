@@ -160,7 +160,7 @@ async fn get_block_results(
 
 #[allow(clippy::let_with_type_underscore)]
 #[instrument(name = "Indexer::blocks_stream", skip(client, block))]
-fn blocks_stream(
+fn blocks_stream<'a>(
     block: u64,
     chain_name: &'a str,
     client: &'a  HttpClient,
