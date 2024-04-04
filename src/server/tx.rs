@@ -29,7 +29,7 @@ use sqlx::postgres::PgRow as Row;
 use sqlx::Row as TRow;
 
 // namada::ibc::applications::transfer::msgs::transfer::TYPE_URL has been made private and can't be access anymore
-// const MSG_TRANSFER_TYPE_URL: &str = "/ibc.applications.transfer.v1.MsgTransfer";
+const MSG_TRANSFER_TYPE_URL: &str = "/ibc.applications.transfer.v1.MsgTransfer";
 
 /// Transaction types
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
