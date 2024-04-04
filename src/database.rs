@@ -1498,44 +1498,13 @@ impl Database {
     pub async fn get_txs_by_address(&self, address: &String) -> Result<Vec<Row>, Error> {
         // query for transaction with hash
         let str = format!(
-            "SELECT * FROM {}.{TX_TABLE_NAME} WHERE data->>'source' = $1 OR data->>'target' = $1;",														
-				   
-					   
-								   
-				  
-								 
-	 
-
-							 
-											  
-							 
-			  
-					 
-				   
-					
-							  
-								  
-										  
-									
-																
+            "SELECT * FROM {}.{TX_TABLE_NAME} WHERE data->>'source' = $1 OR data->>'target' = $1;",												
             self.network
         );
 
         query(&str)
-							
-															  
-		 
-
-															  
-																				
-
-						 
-					   
-							   
             .bind(address)
-							   
-								
-            .fetch_one(&*self.pool)
+            .fetch_all(&*self.pool)
             .await
             .map_err(Error::from)
     }
@@ -1545,18 +1514,7 @@ impl Database {
     pub async fn get_tx_hashes_block(&self, hash: &[u8]) -> Result<Vec<Row>, Error> {
         // query for all tx hash that are in a block identified by the block_id
         let str = format!("SELECT t.hash, t.tx_type FROM {0}.{BLOCKS_TABLE_NAME} b JOIN {0}.{TX_TABLE_NAME} t ON b.block_id = t.block_id WHERE b.block_id = $1;", self.network);
-							  
-							 
-							  
-																				  
-						
-		  
-
-																						
-							
-														
-		 
-
+	    
         query(&str)
             .bind(hash)
             .fetch_all(&*self.pool)
