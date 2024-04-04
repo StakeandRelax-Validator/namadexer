@@ -2,11 +2,14 @@ use crate::queries::insert_block_query;
 use crate::{config::DatabaseConfig, error::Error, utils};
 use serde_json::json;
 
+															   
 use namada_sdk::types::key::common::PublicKey;
 use namada_sdk::{
     account::{InitAccount, UpdateAccount},
     borsh::BorshDeserialize,
     governance::{InitProposalData, VoteProposalData},
+								 
+															 
     tx::{
         data::{
             pgf::UpdateStewardCommission,
@@ -28,6 +31,7 @@ use namada_sdk::{
 use sqlx::postgres::{PgPool, PgPoolOptions, PgRow as Row};
 use sqlx::Row as TRow;
 use sqlx::{query, QueryBuilder, Transaction};
+							  
 use std::sync::Arc;
 use std::time::Duration;
 use tendermint::block::Block;
@@ -43,8 +47,13 @@ use crate::{
 };
 
 use crate::tables::{
+																		   
     get_create_block_table_query, get_create_commit_signatures_table_query,
     get_create_evidences_table_query, get_create_transactions_table_query,
+																			
+																		  
+																		  
+								   
 };
 use crate::views;
 
@@ -52,6 +61,7 @@ use metrics::{gauge, histogram, increment_counter};
 
 const BLOCKS_TABLE_NAME: &str = "blocks";
 const TX_TABLE_NAME: &str = "transactions";
+										
 
 // Max time to wait for a succesfull database connection
 const DATABASE_TIMEOUT: u64 = 60;
@@ -322,6 +332,7 @@ impl Database {
             .execute(&*self.pool)
             .await?;
 
+				
         query(views::get_create_tx_withdraw_view_query(&self.network).as_str())
             .execute(&*self.pool)
             .await?;
@@ -335,6 +346,7 @@ impl Database {
     async fn save_block_impl<'a>(
         block: &Block,
         block_results: &block_results::Response,
+												
         sqlx_tx: &mut Transaction<'a, sqlx::Postgres>,
         network: &str,
     ) -> Result<(), Error> {
@@ -430,6 +442,7 @@ impl Database {
             block_id,
             block.header.height.value(),
             block_results,
+						  
             sqlx_tx,
             network,
         )
@@ -444,6 +457,7 @@ impl Database {
         &self,
         block: &Block,
         block_results: &block_results::Response,
+												
     ) -> Result<(), Error> {
         let instant = tokio::time::Instant::now();
         // Lets use postgres transaction internally for 2 reasons:
@@ -456,6 +470,13 @@ impl Database {
         let mut sqlx_tx = self.transaction().await?;
 
         Self::save_block_impl(block, block_results, &mut sqlx_tx, self.network.as_str()).await?;
+				  
+						  
+						  
+						 
+								  
+		 
+				
 
         let res = sqlx_tx.commit().await.map_err(Error::from);
 
@@ -588,6 +609,7 @@ impl Database {
     pub async fn save_block_tx<'a>(
         block: &Block,
         block_results: &block_results::Response,
+												
         sqlx_tx: &mut Transaction<'a, sqlx::Postgres>,
         network: &str,
     ) -> Result<(), Error> {
@@ -709,6 +731,7 @@ impl Database {
         block_id: &[u8],
         block_height: u64,
         block_results: &block_results::Response,
+												
         sqlx_tx: &mut Transaction<'a, sqlx::Postgres>,
         network: &str,
     ) -> Result<(), Error> {
@@ -739,8 +762,10 @@ impl Database {
                     fee_amount_per_gas_unit,
                     fee_token,
                     gas_limit_multiplier,
+							  
                     code,
                     data,
+						 
                     return_code
                 )",
             network
@@ -759,7 +784,10 @@ impl Database {
             let tx = Tx::try_from(t.as_slice()).map_err(|e| Error::InvalidTxData(e.to_string()))?;
 
             let mut code = Default::default();
+															  
+
             let mut txid_wrapper: Vec<u8> = vec![];
+
             let mut hash_id = tx.header_hash().to_vec();
             let mut data_json: serde_json::Value = json!(null);
             let mut return_code: Option<i32> = None;
@@ -783,12 +811,20 @@ impl Database {
                 // now for the event get its attribute and parse the return code
                 if let Some(event) = matching_event {
                     // Now, look for the "code" attribute in the found event
+																 
+											 
+																					   
+						 
+															  
                     if let Some(code_attr) = event.attributes.iter().find(|attr| attr.key == "code")
                     {
                         // Parse the code value.
                         // It could be possible to ignore the error by converting the result
                         // to an Option<i32> but it is better to fail if the value is not a number.
                         return_code = Some(code_attr.value.parse()?);
+								 
+							 
+						 
                     }
                 }
 
@@ -808,6 +844,9 @@ impl Database {
                 let code_hex = hex::encode(code.as_slice());
                 let unknown_type = "unknown".to_string();
                 let type_tx = CHECKSUMS.get(&code_hex).unwrap_or(&unknown_type);
+												
+
+														
 
                 // decode tx_transfer, tx_bond and tx_unbound to store the decoded data in their tables
                 // if the transaction has failed don't try to decode because the changes are not included and the data might not be correct
@@ -825,24 +864,210 @@ impl Database {
                         "tx_transfer" => {
                             let transfer = token::Transfer::try_from_slice(&data[..])?;
                             data_json = serde_json::to_value(transfer)?;
+																							   
+															
+										  
+											
+											
+										  
+										   
+										
+											
+								   
+									   
+							   
+
+													 
+																			 
+														 
+																			   
+																			   
+																			  
+																			   
+																								
+																								   
+								  
+										 
+																
                         }
                         "tx_bond" => {
                             let bond = Bond::try_from_slice(&data[..])?;
                             data_json = serde_json::to_value(bond)?;
+																							   
+														
+										  
+											  
+										   
+										   
+										
+								   
+									   
+							   
+
+													 
+																			 
+														 
+																			  
+																				  
+																							   
+														 
+								  
+										 
+																
                         }
                         "tx_unbond" => {
                             let unbond = Unbond::try_from_slice(&data[..])?;
                             data_json = serde_json::to_value(unbond)?;
+																							   
+														
+										  
+											  
+										   
+										   
+										
+								   
+									   
+							   
+
+													 
+																			 
+														 
+																				
+																					
+												   
+												  
+													   
+														 
+																						   
+										 
+														  
+								  
+										 
+																
                         }
                         // this is an ethereum transaction
                         "tx_bridge_pool" => {
                             // Only TransferToEthereum type is supported at the moment by namada and us.
                             let tx_bridge = PendingTransfer::try_from_slice(&data[..])?;
                             data_json = serde_json::to_value(tx_bridge)?;
+																								  
+																  
+											 
+											 
+												 
+											  
+											  
+												  
+											
+									  
+										  
+								  
+
+														
+																				
+															
+																						   
+																							   
+																							
+																								   
+																								  
+																						   
+									 
+											
+																   
+							
+											   
+																							   
+																 
+										  
+											  
+										 
+										   
+													   
+													 
+											   
+								   
+									   
+							   
+
+																					   
+
+													 
+																			 
+														 
+																	 
+																			  
+																			  
+												   
+												   
+																   
+															
+															   
+														  
+										 
+												   
+												   
+																 
+															
+															   
+														  
+										 
+												   
+																									
+										  
+								  
+										 
+																
                         }
                         "tx_vote_proposal" => {
+																							   
+															  
+													 
+										 
+										  
+										 
+								   
+									   
+							   
+
                             let tx_vote_proposal = VoteProposalData::try_from_slice(&data[..])?;
                             data_json = serde_json::to_value(tx_vote_proposal)?;
+																							  
+																 
+																	   
+
+													 
+																			 
+															
+																			
+																		  
+															 
+								  
+										 
+																
+
+												   
+																				   
+																
+																		
+															  
+																	
+													 
+												
+								   
+											   
+									   
+
+																								  
+																	  
+																 
+														 
+																						   
+																						 
+									  
+											 
+																	
+							 
                         }
                         "tx_reveal_pk" => {
                             // nothing to do here, only check that data is a valid publicKey
@@ -938,6 +1163,7 @@ impl Database {
             // values only set if transaction type is Wrapper
             let mut fee_amount_per_gas_unit: Option<String> = None;
             let mut fee_token: Option<String> = None;
+
             let mut gas_limit_multiplier: Option<i64> = None;
             if let TxType::Wrapper(txw) = tx.header().tx_type {
                 fee_amount_per_gas_unit = Some(txw.fee.amount_per_gas_unit.to_string_precise());
@@ -956,8 +1182,10 @@ impl Database {
                 fee_amount_per_gas_unit,
                 fee_token,
                 gas_limit_multiplier,
+                code_type,
                 code,
                 data_json,
+                tx.memo().map(|v| v.to_vec()),
                 return_code,
             ));
         }
@@ -980,8 +1208,10 @@ impl Database {
                     fee_amount_per_gas_unit,
                     fee_token,
                     fee_gas_limit_multiplier,
+                    code_type,
                     code,
                     data,
+                    memo,
                     return_code,
                 )| {
                     b.push_bind(hash)
@@ -991,8 +1221,10 @@ impl Database {
                         .push_bind(fee_amount_per_gas_unit)
                         .push_bind(fee_token)
                         .push_bind(fee_gas_limit_multiplier)
+                        .push_bind(code_type)
                         .push_bind(code)
                         .push_bind(data)
+                        .push_bind(memo)
                         .push_bind(return_code);
                 },
             )
@@ -1058,6 +1290,96 @@ impl Database {
         query(format!("ALTER TABLE {0}.transactions ADD CONSTRAINT fk_block_id FOREIGN KEY (block_id) REFERENCES {0}.blocks (block_id);", self.network).as_str())
             .execute(&*self.pool)
             .await?;
+
+				 
+					   
+																									  
+							   
+				
+						 
+			
+								
+				   
+
+			  
+					
+																			 
+							
+			 
+					  
+		 
+							 
+				
+
+			  
+					
+																			 
+							
+			 
+					  
+		 
+							 
+				
+
+				 
+					   
+																							  
+							   
+				
+						 
+			
+								
+				   
+
+				 
+					   
+																									   
+							   
+				
+						 
+			
+								
+				   
+
+			  
+					
+																		   
+							
+			 
+					  
+		 
+							 
+				
+
+			  
+					
+																	 
+							
+			 
+					  
+		 
+							 
+				
+
+			  
+					
+																							
+							
+			 
+					  
+		 
+							 
+				
+
+			  
+					
+																					 
+							
+			 
+					  
+		 
+							 
+				
 
         Ok(())
     }
@@ -1139,11 +1461,40 @@ impl Database {
         // query for transaction with hash
         let str = format!(
             "SELECT * FROM {}.{TX_TABLE_NAME} WHERE data->>'source' = $1 OR data->>'target' = $1;",
+				   
+					   
+								   
+				  
+								 
+	 
+
+							 
+											  
+							 
+			  
+					 
+				   
+					
+							  
+								  
+										  
+									
+																
             self.network
         );
 
         query(&str)
+							
+															  
+		 
+
+															  
+																				
+
+						 
             .bind(address)
+							   
+								
             .fetch_all(&*self.pool)
             .await
             .map_err(Error::from)
@@ -1154,6 +1505,17 @@ impl Database {
     pub async fn get_tx_hashes_block(&self, hash: &[u8]) -> Result<Vec<Row>, Error> {
         // query for all tx hash that are in a block identified by the block_id
         let str = format!("SELECT t.hash, t.tx_type FROM {0}.{BLOCKS_TABLE_NAME} b JOIN {0}.{TX_TABLE_NAME} t ON b.block_id = t.block_id WHERE b.block_id = $1;", self.network);
+							  
+							 
+							  
+																				  
+						
+		  
+
+																						
+							
+														
+		 
 
         query(&str)
             .bind(hash)
@@ -1190,6 +1552,108 @@ impl Database {
             .map_err(Error::from)
     }
 
+    #[instrument(skip(self))]
+    /// Returns the latest stats
+    pub async fn get_tx_stats(&self) -> Result<Vec<Row>, Error> {
+        let str = format!("SELECT COALESCE(t.return_code, 999) as return_code, count(t.*) as tx_count FROM {0}.{TX_VIEW_NAME} t GROUP BY t.return_code", self.network);
+
+        // use query_one as the row matching max height is unique.
+        query(&str)
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(Error::from)
+    }
+
+    #[instrument(skip(self))]
+    /// Return proposal by id
+    pub async fn get_proposal(&self, id: &i32) -> Result<Option<Row>, Error> {
+        let str = format!("SELECT * FROM {}.proposals WHERE id = $1", self.network);
+
+        // use query_one as the row matching max height is unique.
+        query(&str)
+            .bind(id)
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(Error::from)
+    }
+
+    #[instrument(skip(self))]
+    /// Return all proposals
+    pub async fn get_proposals(&self) -> Result<Vec<Row>, Error> {
+        let str = format!("SELECT * FROM {}.proposals ORDER by id DESC", self.network);
+
+        // use query_one as the row matching max height is unique.
+        query(&str)
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(Error::from)
+    }
+
+    #[instrument(skip(self))]
+    pub async fn update_proposal_content(
+        &self,
+        id: i32,
+        content: BTreeMap<String, String>,
+    ) -> Result<(), Error> {
+        query(
+            format!(
+                "UPDATE {}.proposals SET content = $1::json WHERE id = $2",
+                self.network
+            )
+            .as_str(),
+        )
+        .bind(serde_json::to_string(&content).unwrap())
+        .bind(id)
+        .execute(&*self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    pub async fn save_proposal(&self, proposal: StorageProposal) -> Result<(), Error> {
+        let content: BTreeMap<String, String> = proposal.content.clone();
+
+        // I'm using standard query instead of query builder because i have no idea how to cast content to ::json with push_values
+        query(format!("INSERT INTO {}.proposals (id, type, author, content, voting_start_epoch, voting_end_epoch, grace_epoch) VALUES ($1, $2, $3, $4::json, $5, $6, $7);", self.network).as_str(),)
+            .bind(proposal.id as i32)
+            .bind(proposal.r#type.to_string())
+            .bind(proposal.author.to_string())
+            .bind(serde_json::to_string(&content).unwrap())
+            .bind(
+                proposal
+                    .voting_start_epoch
+                    .to_string()
+                    .parse::<i32>()
+                    .unwrap(),
+            )
+            .bind(
+                proposal
+                    .voting_end_epoch
+                    .to_string()
+                    .parse::<i32>()
+                    .unwrap(),
+            )
+            .bind(proposal.grace_epoch.to_string().parse::<i32>().unwrap())
+            .execute(&*self.pool).await?;
+
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    /// Returns the latest height value, otherwise returns an Error.
+    pub async fn get_proposal_counter(&self) -> Result<Row, Error> {
+        let str = format!(
+            "SELECT COUNT(id) AS counter FROM {}.proposals",
+            self.network
+        );
+
+        query(&str)
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(Error::from)
+    }
+
     /// Retrieves a historical list of thresholds associated with a given account.
     ///
     /// This function executes a SQL query to aggregate thresholds (`ARRAY_AGG`) for the specified
@@ -1218,11 +1682,16 @@ impl Database {
         // NOTE: there are two scenarios:
         // - account_id does not exists in such case this query will return Ok(None), because we
         // use query.fetch_optional()
+																				   
+																 
+																					   
+																		  
         let to_query = format!(
             "
             SELECT COALESCE(ARRAY_AGG(data->>'threshold' ORDER BY data->>'addr' ASC), ARRAY[]::text[]) AS thresholds
             FROM {}.transactions
             WHERE code = '\\x70f91d4f778d05d40c5a56490ced906b016e4b7a2a2ef5ff0ac0541ff28c5a22' AND data->>'addr' = $1 GROUP BY data->>'addr';
+							
             ",
             self.network
         );
@@ -1267,6 +1736,7 @@ impl Database {
             SELECT COALESCE(ARRAY_AGG(data->>'vp_code_hash' ORDER BY data->>'addr' ASC), ARRAY[]::text[]) AS code_hashes
             FROM {}.account_updates
             WHERE code = '\\x70f91d4f778d05d40c5a56490ced906b016e4b7a2a2ef5ff0ac0541ff28c5a22' AND data->>'addr' = $1 GROUP BY data->>'addr';
+								
             ",
             self.network
         );
@@ -1314,6 +1784,10 @@ impl Database {
             SELECT ARRAY_AGG(data->>'public_keys')
             FROM {}.transactions
             WHERE code = '\\x70f91d4f778d05d40c5a56490ced906b016e4b7a2a2ef5ff0ac0541ff28c5a22' AND data->>'addr' = $1;
+																			  
+			 
+							  
+								   
         ",
             self.network,
         );
@@ -1336,6 +1810,45 @@ impl Database {
         // Execute the query and fetch the first row (if any)
         sqlx::query(&query)
             .bind(proposal_id)
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(Error::from)										
+	    }			  
+
+    pub async fn vote_proposal_delegations(&self, proposal_id: u64) -> Result<Vec<Row>, Error> {
+        let q = format!(
+            "SELECT delegator_id 
+                FROM {}.delegations 
+                WHERE vote_proposal_id = $1",
+            self.network
+        );
+
+        query(&q)
+            .bind(proposal_id.to_be_bytes())																				
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(Error::from)
+    }
+
+    pub async fn get_missing_votes(&self, address: String, epoch: i32) -> Result<Vec<Row>, Error> {
+        let q = format!(
+            "SELECT p.id from {0}.proposals p where id not in (SELECT DISTINCT
+                (get_byte(v.vote_proposal_id, 0)::bigint << 56) |
+                (get_byte(v.vote_proposal_id, 1)::bigint << 48) |
+                (get_byte(v.vote_proposal_id, 2)::bigint << 40) |
+                (get_byte(v.vote_proposal_id, 3)::bigint << 32) |
+                (get_byte(v.vote_proposal_id, 4)::bigint << 24) |
+                (get_byte(v.vote_proposal_id, 5)::bigint << 16) |
+                (get_byte(v.vote_proposal_id, 6)::bigint << 8)  |
+                get_byte(v.vote_proposal_id, 7)::bigint AS vote_proposal_id_as_bigint
+            FROM {0}.vote_proposal v
+            WHERE v.voter = $1) and p.voting_end_epoch >$2 and p.voting_start_epoch <= $2",
+            self.network
+        );
+
+        query(&q)
+            .bind(address)
+            .bind(epoch)
             .fetch_all(&*self.pool)
             .await
             .map_err(Error::from)
