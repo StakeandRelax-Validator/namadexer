@@ -11,7 +11,7 @@ use namada_sdk::{
     borsh::BorshDeserialize,
     governance::InitProposalData,
     governance::VoteProposalData,
-    tendermint_proto::types::EvidenceList as RawEvidenceList,
+//    tendermint_proto::types::EvidenceList as RawEvidenceList,
 															 
     tx::{
         data::{
