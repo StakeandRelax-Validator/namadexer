@@ -1,6 +1,27 @@
 use crate::error::Error;
+					 
+																		
+											   
+											  
+use namada_sdk::{
+    account::{InitAccount, UpdateAccount},
+    borsh::BorshDeserialize,
+    governance::InitProposalData,
+    governance::VoteProposalData,
+    tx::data::{
+        pgf::UpdateStewardCommission,
+        pos::{Bond, Unbond, Withdraw},
+    },
+    types::token,
+    types::{address::Address, eth_bridge_pool::PendingTransfer},
+};
+
 use namada_sdk::ibc::primitives::proto::Any;
+				   
+
 use serde::{Deserialize, Serialize};
+							  
+				  
 
 use super::utils::serialize_optional_hex;
 
@@ -9,6 +30,25 @@ use sqlx::Row as TRow;
 
 // namada::ibc::applications::transfer::msgs::transfer::TYPE_URL has been made private and can't be access anymore
 // const MSG_TRANSFER_TYPE_URL: &str = "/ibc.applications.transfer.v1.MsgTransfer";
+
+					 
+												   
+					
+							  
+			   
+						
+								   
+								   
+										  
+				   
+					   
+							 
+								 
+						   
+													 
+								   
+			   
+ 
 
 // we have a variant for MsgTransfer, but there are other message types
 // defined in https://github.com/cosmos/ibc-rs/blob/main/crates/ibc/src/core/msgs.rs
@@ -43,10 +83,18 @@ pub struct TxInfo {
     /// Gas limit (only for Wrapper tx)
     gas_limit_multiplier: Option<i64>,
     /// The transaction code. Match what is in the checksum.js
+    code_type: Option<String>,
     #[serde(serialize_with = "serialize_optional_hex")]
     code: Option<Vec<u8>>,
+													   
     data: Option<serde_json::Value>,
+    #[serde(serialize_with = "serialize_optional_hex")]
+    memo: Option<Vec<u8>>,
     return_code: Option<i32>, // New field for return_code
+    /// Inner transaction type
+    tx: Option<TxDecoded>,
+    /// Inner block info
+    block: Option<BlockInfo>,
 }
 
 impl TxInfo {
@@ -66,6 +114,66 @@ impl TxInfo {
         self.data.clone().unwrap_or_default()
     }
 
+												 
+								   
+	 
+
+																						   
+								
+																  
+																				  
+			  
+
+												  
+								  
+																						   
+				 
+																					  
+								   
+																					 
+				 
+									   
+																								
+				 
+																					
+																	   
+																							
+																								  
+									  
+																						  
+				 
+										
+																							   
+										
+																							  
+				 
+										
+																						
+				 
+												   
+																				  
+																		 
+																 
+				 
+																				
+									 
+																								
+				 
+					  
+															
+												 
+							   
+						
+				 
+			  
+
+								 
+
+						  
+		 
+															   
+	 
+
     // fn decode_ibc(tx_data: &[u8]) -> Result<IbcTx, Error> {
     //     let msg = Any::decode(tx_data).map_err(|e| Error::InvalidTxData(e.to_string()))?;
     //     if msg.type_url.as_str() == MSG_TRANSFER_TYPE_URL
@@ -82,6 +190,8 @@ impl TryFrom<Row> for TxInfo {
     type Error = Error;
 
     fn try_from(row: Row) -> Result<Self, Self::Error> {
+        info!("TxInfo::try_from");
+
         let hash: Vec<u8> = row.try_get("hash")?;
         let block_id: Vec<u8> = row.try_get("block_id")?;
         let tx_type: String = row.try_get("tx_type")?;
@@ -89,8 +199,10 @@ impl TryFrom<Row> for TxInfo {
         let fee_amount_per_gas_unit = row.try_get("fee_amount_per_gas_unit")?;
         let fee_token = row.try_get("fee_token")?;
         let gas_limit_multiplier = row.try_get("gas_limit_multiplier")?;
+        let code_type = row.try_get("code_type")?;
         let code: Option<Vec<u8>> = row.try_get("code")?;
         let data: Option<serde_json::Value> = row.try_get("data")?;
+        let memo: Option<Vec<u8>> = row.try_get("memo")?;
         let return_code = row.try_get("return_code")?;
 
         Ok(Self {
@@ -101,9 +213,13 @@ impl TryFrom<Row> for TxInfo {
             fee_amount_per_gas_unit,
             fee_token,
             gas_limit_multiplier,
+            code_type,
             code,
             data,
+            memo,
             return_code, // Assigning return_code to the struct field
+            tx: None,
+            block: None,
         })
     }
 }
@@ -123,6 +239,7 @@ impl TryFrom<Row> for VoteProposalTx {
 
     fn try_from(value: Row) -> Result<Self, Self::Error> {
         let id = value.try_get::<i64, _>("vote_proposal_id")?;
+										
 
         let vote = value.try_get::<String, _>("vote")?;
         let voter = value.try_get::<String, _>("voter")?;
