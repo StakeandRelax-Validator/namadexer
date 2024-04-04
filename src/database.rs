@@ -1,7 +1,9 @@
 use crate::queries::insert_block_query;
 use crate::{config::DatabaseConfig, error::Error, utils};
 use serde_json::json;
+use std::collections::BTreeMap;
 
+use namada_sdk::governance::storage::proposal::StorageProposal;
 															   
 use namada_sdk::types::key::common::PublicKey;
 use namada_sdk::{
@@ -9,6 +11,7 @@ use namada_sdk::{
     borsh::BorshDeserialize,
     governance::{InitProposalData, VoteProposalData},
 								 
+    tendermint_proto::types::EvidenceList as RawEvidenceList,								 
 															 
     tx::{
         data::{
@@ -47,13 +50,13 @@ use crate::{
 };
 
 use crate::tables::{
-																		   
+    get_create_account_public_keys_table, get_create_account_updates_table,																		   
     get_create_block_table_query, get_create_commit_signatures_table_query,
-    get_create_evidences_table_query, get_create_transactions_table_query,
-																			
-																		  
-																		  
-								   
+    get_create_delegations_table, get_create_evidences_table_query, get_create_proposals_table,
+    get_create_transactions_table_query, get_create_transactions_view_query,
+    get_create_tx_bond_table_query, get_create_tx_bridge_pool_table_query,
+    get_create_tx_init_proposal_table, get_create_tx_transfer_table_query,
+    get_create_vote_proposal_table,				   
 };
 use crate::views;
 
@@ -61,7 +64,7 @@ use metrics::{gauge, histogram, increment_counter};
 
 const BLOCKS_TABLE_NAME: &str = "blocks";
 const TX_TABLE_NAME: &str = "transactions";
-										
+const TX_VIEW_NAME: &str = "tx_details";
 
 // Max time to wait for a succesfull database connection
 const DATABASE_TIMEOUT: u64 = 60;
@@ -332,7 +335,23 @@ impl Database {
             .execute(&*self.pool)
             .await?;
 
-				
+       query(get_create_vote_proposal_table(&self.network).as_str())
+            .execute(&*self.pool)
+            .await?;
+
+        query(get_create_delegations_table(&self.network).as_str())
+            .execute(&*self.pool)
+            .await?;
+
+        query(get_create_proposals_table(&self.network).as_str())
+            .execute(&*self.pool)
+            .await?;
+
+        query(get_create_tx_init_proposal_table(&self.network).as_str())
+            .execute(&*self.pool)
+            .await?;
+
+			
         query(views::get_create_tx_withdraw_view_query(&self.network).as_str())
             .execute(&*self.pool)
             .await?;
@@ -471,6 +490,13 @@ impl Database {
 
         Self::save_block_impl(block, block_results, &mut sqlx_tx, self.network.as_str()).await?;
 				  
+						  
+						  
+						 
+								  
+		 
+				
+
         let res = sqlx_tx.commit().await.map_err(Error::from);
 
         let dur = instant.elapsed();
@@ -839,6 +865,8 @@ impl Database {
                 let type_tx = CHECKSUMS.get(&code_hex).unwrap_or(&unknown_type);
 		code_type = type_tx.to_string();																						
 
+														
+
                 // decode tx_transfer, tx_bond and tx_unbound to store the decoded data in their tables
                 // if the transaction has failed don't try to decode because the changes are not included and the data might not be correct
                 if return_code.unwrap() == 0 {
@@ -855,24 +883,210 @@ impl Database {
                         "tx_transfer" => {
                             let transfer = token::Transfer::try_from_slice(&data[..])?;
                             data_json = serde_json::to_value(transfer)?;											
+																							   
+															
+										  
+											
+											
+										  
+										   
+										
+											
+								   
+									   
+							   
+
+													 
+																			 
+														 
+																			   
+																			   
+																			  
+																			   
+																								
+																								   
+								  
+										 
+																
                         }
                         "tx_bond" => {
                             let bond = Bond::try_from_slice(&data[..])?;
                             data_json = serde_json::to_value(bond)?;												
+																							   
+														
+										  
+											  
+										   
+										   
+										
+								   
+									   
+							   
+
+													 
+																			 
+														 
+																			  
+																				  
+																							   
+														 
+								  
+										 
+																
                         }
                         "tx_unbond" => {
                             let unbond = Unbond::try_from_slice(&data[..])?;
                             data_json = serde_json::to_value(unbond)?;												
+																							   
+														
+										  
+											  
+										   
+										   
+										
+								   
+									   
+							   
+
+													 
+																			 
+														 
+																				
+																					
+												   
+												  
+													   
+														 
+																						   
+										 
+														  
+								  
+										 
+																
                         }
                         // this is an ethereum transaction
                         "tx_bridge_pool" => {
                             // Only TransferToEthereum type is supported at the moment by namada and us.
                             let tx_bridge = PendingTransfer::try_from_slice(&data[..])?;
                             data_json = serde_json::to_value(tx_bridge)?;												
+																								  
+																  
+											 
+											 
+												 
+											  
+											  
+												  
+											
+									  
+										  
+								  
+
+														
+																				
+															
+																						   
+																							   
+																							
+																								   
+																								  
+																						   
+									 
+											
+																   
+							
+											   
+																							   
+																 
+										  
+											  
+										 
+										   
+													   
+													 
+											   
+								   
+									   
+							   
+
+																					   
+
+													 
+																			 
+														 
+																	 
+																			  
+																			  
+												   
+												   
+																   
+															
+															   
+														  
+										 
+												   
+												   
+																 
+															
+															   
+														  
+										 
+												   
+																									
+										  
+								  
+										 
+																
                         }
                         "tx_vote_proposal" => {
+																							   
+															  
+													 
+										 
+										  
+										 
+								   
+									   
+							   
+
                             let tx_vote_proposal = VoteProposalData::try_from_slice(&data[..])?;
                             data_json = serde_json::to_value(tx_vote_proposal)?;
+																							  
+																 
+																	   
+
+													 
+																			 
+															
+																			
+																		  
+															 
+								  
+										 
+																
+
+												   
+																				   
+																
+																		
+															  
+																	
+													 
+												
+								   
+											   
+									   
+
+																								  
+																	  
+																 
+														 
+																						   
+																						 
+									  
+											 
+																	
+							 
                         }
                         "tx_reveal_pk" => {
                             // nothing to do here, only check that data is a valid publicKey
@@ -1095,6 +1309,97 @@ impl Database {
         query(format!("ALTER TABLE {0}.transactions ADD CONSTRAINT fk_block_id FOREIGN KEY (block_id) REFERENCES {0}.blocks (block_id);", self.network).as_str())
             .execute(&*self.pool)
             .await?;
+
+				 
+					   
+																									  
+							   
+				
+						 
+			
+								
+				   
+
+			  
+					
+																			 
+							
+			 
+					  
+		 
+							 
+				
+
+			  
+					
+																			 
+							
+			 
+					  
+		 
+							 
+				
+
+				 
+					   
+																							  
+							   
+				
+						 
+			
+								
+				   
+
+				 
+					   
+																									   
+							   
+				
+						 
+			
+								
+				   
+
+			  
+					
+																		   
+							
+			 
+					  
+		 
+							 
+				
+
+			  
+					
+																	 
+							
+			 
+					  
+		 
+							 
+				
+
+			  
+					
+																							
+							
+			 
+					  
+		 
+							 
+				
+
+			  
+					
+																					 
+							
+			 
+					  
+		 
+							 
+				
+
         Ok(())
     }
 
@@ -1175,11 +1480,40 @@ impl Database {
         // query for transaction with hash
         let str = format!(
             "SELECT * FROM {}.{TX_TABLE_NAME} WHERE data->>'source' = $1 OR data->>'target' = $1;",														
+				   
+					   
+								   
+				  
+								 
+	 
+
+							 
+											  
+							 
+			  
+					 
+				   
+					
+							  
+								  
+										  
+									
+																
             self.network
         );
 
         query(&str)
+							
+															  
+		 
+
+															  
+																				
+
+						 
             .bind(address)
+							   
+								
             .fetch_all(&*self.pool)
             .await
             .map_err(Error::from)
@@ -1190,6 +1524,17 @@ impl Database {
     pub async fn get_tx_hashes_block(&self, hash: &[u8]) -> Result<Vec<Row>, Error> {
         // query for all tx hash that are in a block identified by the block_id
         let str = format!("SELECT t.hash, t.tx_type FROM {0}.{BLOCKS_TABLE_NAME} b JOIN {0}.{TX_TABLE_NAME} t ON b.block_id = t.block_id WHERE b.block_id = $1;", self.network);
+							  
+							 
+							  
+																				  
+						
+		  
+
+																						
+							
+														
+		 
 
         query(&str)
             .bind(hash)
@@ -1358,6 +1703,8 @@ impl Database {
         // use query.fetch_optional()
 																				   
 																	  
+																					   
+																		  
         let to_query = format!(
             "
             SELECT COALESCE(ARRAY_AGG(data->>'threshold' ORDER BY data->>'addr' ASC), ARRAY[]::text[]) AS thresholds
@@ -1456,6 +1803,10 @@ impl Database {
             SELECT ARRAY_AGG(data->>'public_keys')
             FROM {}.transactions
             WHERE code = '\\x70f91d4f778d05d40c5a56490ced906b016e4b7a2a2ef5ff0ac0541ff28c5a22' AND data->>'addr' = $1;
+																			  
+			 
+							  
+								   
 	    ",
             self.network,
         );
