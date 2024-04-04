@@ -2,7 +2,7 @@ use crate::queries::insert_block_query;
 use crate::{config::DatabaseConfig, error::Error, utils};
 use serde_json::json;
 use std::collections::BTreeMap;
-
+use tracing::debug;
 use namada_sdk::governance::storage::proposal::StorageProposal;
 															   
 use namada_sdk::types::key::common::PublicKey;
