@@ -282,6 +282,31 @@ fn spawn_block_producer(
 ) -> (Receiver<BlockInfo>, JoinHandle<Result<(), Error>>) {
     // Create a channel
     let (tx, rx): (Sender<BlockInfo>, Receiver<BlockInfo>) =
+        tokio::sync::mpsc::channel(MAX_BLOCKS_IN_CHANNEL);
+
+    // Spawn the task
+    let chain_name = chain_name.to_string();
+    let handler = tokio::spawn(async move {
+        let stream = blocks_stream(current_height as _, chain_name.as_str(), &client);
+        pin_mut!(stream);
+
+        while let Some(block) = stream.next().await {
+            if producer_shutdown.load(Ordering::Relaxed) {
+                tracing::warn!("Block consumer closed, exiting producer");
+                break;
+            }
+
+            tx.send(block).await?;
+        }
+
+        Ok::<(), Error>(())
+    });
+
+    (rx, handler)
+}
+
+
+
 async fn index_proposals(config: &IndexerConfig, db: Database) -> Result<(), Error> {
     let client = HttpClient::new(config.tendermint_addr.as_str())?;
 
@@ -311,27 +336,3 @@ async fn index_proposals(config: &IndexerConfig, db: Database) -> Result<(), Err
 
     Ok(())
 }
-
-        tokio::sync::mpsc::channel(MAX_BLOCKS_IN_CHANNEL);
-
-    // Spawn the task
-    let chain_name = chain_name.to_string();
-    let handler = tokio::spawn(async move {
-        let stream = blocks_stream(current_height as _, chain_name.as_str(), &client);
-        pin_mut!(stream);
-
-        while let Some(block) = stream.next().await {
-            if producer_shutdown.load(Ordering::Relaxed) {
-                tracing::warn!("Block consumer closed, exiting producer");
-                break;
-            }
-
-            tx.send(block).await?;
-        }
-
-        Ok::<(), Error>(())
-    });
-
-    (rx, handler)
-}
-
