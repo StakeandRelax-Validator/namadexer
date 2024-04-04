@@ -162,7 +162,7 @@ async fn get_block_results(
 #[instrument(name = "Indexer::blocks_stream", skip(client, block))]
 fn blocks_stream(
     block: u64,
-    chain_name: &'a str,
+    chain_name: &str,
     client: &HttpClient,
 ) -> impl Stream<Item = BlockInfo> + '_ {
     futures::stream::iter(block..).then(move |i| async move { get_block(i as u32, chain_name, client).await })
