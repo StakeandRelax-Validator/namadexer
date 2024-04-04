@@ -1849,7 +1849,7 @@ impl Database {
 
         // Execute the query and fetch the first row (if any)
         sqlx::query(&query)
-            .bind(proposal_id).to_be_bytes())
+            .bind(proposal_id.to_be_bytes())
             .fetch_optional(&*self.pool)
             .await
             .map_err(Error::from)
