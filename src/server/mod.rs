@@ -13,11 +13,16 @@ use tracing::{info, instrument};
 use crate::config::ServerConfig;
 use crate::database::Database;
 use crate::error::Error;
+								 
 
 pub mod blocks;
+pub mod proposal_details;						 
 pub mod tx;
+pub mod tx_details;				   
 pub use blocks::BlockInfo;
+pub use proposal_details::ProposalDetails;										  
 pub use tx::TxInfo;
+pub use tx_details::TxDetails;							  
 pub mod account;
 mod endpoints;
 pub mod shielded;
@@ -28,6 +33,9 @@ use self::endpoints::{
     account::get_account_updates,
     address::get_txs_by_address,
     block::{get_block_by_hash, get_block_by_height, get_last_block},
+    proposal::{get_missing_votes, get_proposal, get_proposals},
+    stats::get_stats,															   
+					 
     transaction::{get_shielded_tx, get_tx_by_hash, get_vote_proposal},
     validator::get_validator_uptime,
 };
@@ -39,6 +47,7 @@ pub const HTTP_DURATION_SECONDS_BUCKETS: &[f64; 11] = &[
 #[derive(Clone)]
 pub struct ServerState {
     db: Database,
+										   
 }
 
 fn server_routes(state: ServerState) -> Router<()> {
@@ -53,7 +62,13 @@ fn server_routes(state: ServerState) -> Router<()> {
         .route("/tx/:tx_hash", get(get_tx_by_hash))
         .route("/tx/vote_proposal/:proposal_id", get(get_vote_proposal))
         .route("/tx/shielded", get(get_shielded_tx))
+        .route("/tx_by_memo/:memo", get(get_tx_by_memo))
         .route("/account/updates/:account_id", get(get_account_updates))
+        .route("/stats", get(get_stats))
+        // Proposals
+        .route("/proposals", get(get_proposals))
+        .route("/proposal/:id", get(get_proposal))
+        .route("/missing_votes/:address/:epoch", get(get_missing_votes))
         .route(
             "/validator/:validator_address/uptime",
             get(get_validator_uptime),
@@ -76,6 +91,8 @@ pub fn create_server(
     config: &ServerConfig,
 ) -> Result<(SocketAddr, impl Future<Output = Result<(), Error>>), Error> {
     info!("Starting JSON server");
+
+										  
 
     // JSON API server
     // we move the handler creation here so we propagate errors gracefully
