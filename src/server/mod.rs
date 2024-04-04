@@ -64,7 +64,7 @@ fn server_routes(state: ServerState) -> Router<()> {
         .route("/tx/shielded", get(get_shielded_tx))
         .route("/tx_by_memo/:memo", get(get_tx_by_memo))
         .route("/account/updates/:account_id", get(get_account_updates))
-        .route("/stats", get(get_stats))
+      //  .route("/stats", get(get_stats))
         // Proposals
         .route("/proposals", get(get_proposals))
         .route("/proposal/:id", get(get_proposal))
