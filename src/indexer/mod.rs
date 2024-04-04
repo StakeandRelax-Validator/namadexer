@@ -4,8 +4,7 @@ use futures::stream::StreamExt;
 use futures_util::pin_mut;
 use futures_util::Stream;
 use namada_sdk::governance::storage::keys as governance_storage;
-use namada_sdk::rpc;																
-					
+use namada_sdk::rpc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -161,13 +160,12 @@ async fn get_block_results(
 
 #[allow(clippy::let_with_type_underscore)]
 #[instrument(name = "Indexer::blocks_stream", skip(client, block))]
-fn blocks_stream<'a>(
+fn blocks_stream(
     block: u64,
     chain_name: &'a str,
-    client: &'a HttpClient,
-) -> impl Stream<Item = BlockInfo> + 'a {
-    futures::stream::iter(block..)
-        .then(move |i| async move { get_block(i as u32, chain_name, client).await })
+    client: &HttpClient,
+) -> impl Stream<Item = BlockInfo> + '_ {
+    futures::stream::iter(block..).then(move |i| async move { get_block(i as u32, chain_name, client).await })
 }
 
 /// Start the indexer service blocking current thread.
@@ -265,10 +263,7 @@ pub async fn start_indexing(
         // We query proposal every 1000 blocks
         if current_height % 100 == 0 {
             index_proposals(&config, db.clone()).await?;
-        }										  
-									  
-														
-		 
+        }
     }
 
     // propagate any error from the block producer
@@ -338,32 +333,4 @@ async fn index_proposals(config: &IndexerConfig, db: Database) -> Result<(), Err
     }
 
     Ok(())
-}																					 
-																   
-
-								
-																		
-
-						
-														
-																						
-
-			 
-												  
-									   
-	  
-
-																				  
-										 
-													   
-								  
-																							
-
-													  
-													  
-			 
-		 
-	 
-
-		  
- 
+}
