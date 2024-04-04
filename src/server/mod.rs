@@ -34,7 +34,7 @@ use self::endpoints::{
     address::get_txs_by_address,
     block::{get_block_by_hash, get_block_by_height, get_last_block},
     proposal::{get_missing_votes, get_proposal, get_proposals},
-    stats::get_stats,															   
+//    stats::get_stats,															   
 					 
     transaction::{get_shielded_tx, get_tx_by_hash, get_vote_proposal},
     validator::get_validator_uptime,
