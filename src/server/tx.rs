@@ -1,8 +1,8 @@
 use crate::error::Error;
-					 
-																		
-											   
-											  
+use crate::BlockInfo;
+use namada_sdk::ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
+use namada_sdk::tx::data::pos::BecomeValidator;
+use namada_sdk::types::key::common::PublicKey;
 use namada_sdk::{
     account::{InitAccount, UpdateAccount},
     borsh::BorshDeserialize,
@@ -17,11 +17,11 @@ use namada_sdk::{
 };
 
 use namada_sdk::ibc::primitives::proto::Any;
-				   
+use prost::Message;				   
 
 use serde::{Deserialize, Serialize};
 							  
-				  
+use tracing::info;
 
 use super::utils::serialize_optional_hex;
 
@@ -31,24 +31,24 @@ use sqlx::Row as TRow;
 // namada::ibc::applications::transfer::msgs::transfer::TYPE_URL has been made private and can't be access anymore
 // const MSG_TRANSFER_TYPE_URL: &str = "/ibc.applications.transfer.v1.MsgTransfer";
 
-					 
-												   
-					
-							  
-			   
-						
-								   
-								   
-										  
-				   
-					   
-							 
-								 
-						   
-													 
-								   
-			   
- 
+/// Transaction types
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub enum TxDecoded {
+    Transfer(token::Transfer),
+    Bond(Bond),
+    RevealPK(PublicKey),
+    VoteProposal(VoteProposalData),
+    InitProposal(InitProposalData),
+    BecomeValidator(Box<BecomeValidator>),
+    Unbond(Unbond),
+    Withdraw(Withdraw),
+    InitAccount(InitAccount),
+    UpdateAccount(UpdateAccount),
+    ResignSteward(Address),
+    UpdateStewardCommission(UpdateStewardCommission),
+    EthPoolBridge(PendingTransfer),
+    Ibc(IbcTx),
+}
 
 // we have a variant for MsgTransfer, but there are other message types
 // defined in https://github.com/cosmos/ibc-rs/blob/main/crates/ibc/src/core/msgs.rs
@@ -114,76 +114,76 @@ impl TxInfo {
         self.data.clone().unwrap_or_default()
     }
 
-												 
-								   
-	 
+    fn set_tx(&mut self, tx_decoded: TxDecoded) {
+        self.tx = Some(tx_decoded);
+    }
 
-																						   
-								
-																  
-																				  
-			  
+    pub fn decode_tx(&mut self, checksums: &HashMap<String, String>) -> Result<(), Error> {
+        if self.is_decrypted() {
+            let Some(type_tx) = checksums.get(&self.code()) else {
+                return Err(Error::InvalidTxData("failed to get checksum".into()));
+            };
 
-												  
-								  
-																						   
-				 
-																					  
-								   
-																					 
-				 
-									   
-																								
-				 
-																					
-																	   
-																							
-																								  
-									  
-																						  
-				 
-										
-																							   
-										
-																							  
-				 
-										
-																						
-				 
-												   
-																				  
-																		 
-																 
-				 
-																				
-									 
-																								
-				 
-					  
-															
-												 
-							   
-						
-				 
-			  
+            let decoded = match type_tx.as_str() {
+                "tx_transfer" => {
+                    token::Transfer::try_from_slice(&self.data()).map(TxDecoded::Transfer)?
+                }
+                "tx_bond" => Bond::try_from_slice(&self.data()).map(TxDecoded::Bond)?,
+                "tx_reveal_pk" => {
+                    PublicKey::try_from_slice(&self.data()).map(TxDecoded::RevealPK)?
+                }
+                "tx_vote_proposal" => {
+                    VoteProposalData::try_from_slice(&self.data()).map(TxDecoded::VoteProposal)?
+                }
+                "tx_init_validator" => BecomeValidator::try_from_slice(&self.data())
+                    .map(|t| TxDecoded::BecomeValidator(Box::new(t)))?,
+                "tx_unbond" => Unbond::try_from_slice(&self.data()).map(TxDecoded::Unbond)?,
+                "tx_withdraw" => Withdraw::try_from_slice(&self.data()).map(TxDecoded::Withdraw)?,
+                "tx_init_account" => {
+                    InitAccount::try_from_slice(&self.data()).map(TxDecoded::InitAccount)?
+                }
+                "tx_update_account" => {
+                    // we could need to give users more context here on how the related accound
+                    // has been updated.
+                    UpdateAccount::try_from_slice(&self.data()).map(TxDecoded::UpdateAccount)?
+                }
+                "tx_resign_steward" => {
+                    Address::try_from_slice(&self.data()).map(TxDecoded::ResignSteward)?
+                }
+                "tx_update_steward_commission" => {
+                    // we could need to give users more context about this update.
+                    UpdateStewardCommission::try_from_slice(&self.data())
+                        .map(TxDecoded::UpdateStewardCommission)?
+                }
+                "tx_ibc" => Self::decode_ibc(&self.data()).map(TxDecoded::Ibc)?,
+                "tx_bridge_pool" => {
+                    PendingTransfer::try_from_slice(&self.data()).map(TxDecoded::EthPoolBridge)?
+                }
+                _ => {
+                    return Err(Error::InvalidTxData(format!(
+                        "unsupported type_tx {}",
+                        type_tx
+                    )));
+                }
+            };
 
-								 
+            self.set_tx(decoded);
 
-						  
-		 
-															   
-	 
+            return Ok(());
+        }
+        Err(Error::InvalidTxData("tx is not decrypted".into()))
+    }
 
-    // fn decode_ibc(tx_data: &[u8]) -> Result<IbcTx, Error> {
-    //     let msg = Any::decode(tx_data).map_err(|e| Error::InvalidTxData(e.to_string()))?;
-    //     if msg.type_url.as_str() == MSG_TRANSFER_TYPE_URL
-    //         && MsgTransfer::try_from(msg.clone()).is_ok()
-    //     {
-    //         Ok(IbcTx::MsgTransfer(msg))
-    //     } else {
-    //         Ok(IbcTx::Any(msg))
-    //     }
-    // }
+    fn decode_ibc(tx_data: &[u8]) -> Result<IbcTx, Error> {
+        let msg = Any::decode(tx_data).map_err(|e| Error::InvalidTxData(e.to_string()))?;
+        if msg.type_url.as_str() == MSG_TRANSFER_TYPE_URL
+            && MsgTransfer::try_from(msg.clone()).is_ok()
+        {
+            Ok(IbcTx::MsgTransfer(msg))
+        } else {
+            Ok(IbcTx::Any(msg))
+        }
+    }
 }
 
 impl TryFrom<Row> for TxInfo {
