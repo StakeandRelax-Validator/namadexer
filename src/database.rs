@@ -755,10 +755,10 @@ impl Database {
                     fee_amount_per_gas_unit,
                     fee_token,
                     gas_limit_multiplier,
-							  
+                    code_type,
                     code,
                     data,
-						 
+                    memo,
                     return_code
                 )",
             network
@@ -777,7 +777,7 @@ impl Database {
             let tx = Tx::try_from(t.as_slice()).map_err(|e| Error::InvalidTxData(e.to_string()))?;
 
             let mut code = Default::default();
-															  
+            let mut code_type: String = "wrapper".to_string();															  
 
             let mut txid_wrapper: Vec<u8> = vec![];
 
@@ -837,9 +837,7 @@ impl Database {
                 let code_hex = hex::encode(code.as_slice());
                 let unknown_type = "unknown".to_string();
                 let type_tx = CHECKSUMS.get(&code_hex).unwrap_or(&unknown_type);
-												
-
-														
+		code_type = type_tx.to_string();																						
 
                 // decode tx_transfer, tx_bond and tx_unbound to store the decoded data in their tables
                 // if the transaction has failed don't try to decode because the changes are not included and the data might not be correct
