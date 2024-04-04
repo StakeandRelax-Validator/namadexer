@@ -9,9 +9,9 @@ use namada_sdk::types::key::common::PublicKey;
 use namada_sdk::{
     account::{InitAccount, UpdateAccount},
     borsh::BorshDeserialize,
-    governance::{InitProposalData, VoteProposalData},
-								 
-    tendermint_proto::types::EvidenceList as RawEvidenceList,								 
+    governance::InitProposalData,
+    governance::VoteProposalData,
+    tendermint_proto::types::EvidenceList as RawEvidenceList,
 															 
     tx::{
         data::{
@@ -40,9 +40,9 @@ use std::time::Duration;
 use tendermint::block::Block;
 use tendermint_proto::types::evidence::Sum;
 use tendermint_proto::types::CommitSig;
-//use tendermint_proto::types::EvidenceList as RawEvidenceList;
+use tendermint_proto::types::EvidenceList as RawEvidenceList;
 use tendermint_rpc::endpoint::block_results;
-use tracing::{debug, info, instrument};
+use tracing::{info, instrument, trace};
 
 use crate::{
     CHECKSUMS, DB_SAVE_BLOCK_COUNTER, DB_SAVE_BLOCK_DURATION, DB_SAVE_COMMIT_SIG_DURATION,
@@ -802,7 +802,7 @@ impl Database {
         for t in txs.iter() {
             let tx = Tx::try_from(t.as_slice()).map_err(|e| Error::InvalidTxData(e.to_string()))?;
 
-            let mut code = Default::default();
+            let mut code: [u8; 32] = Default::default();
             let mut code_type: String = "wrapper".to_string();															  
 
             let mut txid_wrapper: Vec<u8> = vec![];
@@ -823,6 +823,7 @@ impl Database {
                 // filter to get the matching event for hash_id
                 let matching_event = end_events.iter().find(|event| {
                     event.attributes.iter().any(|attr| {
+																 
                         attr.key == "hash" && attr.value.to_ascii_lowercase() == hash_id_str
                     })
                 });
@@ -848,7 +849,7 @@ impl Database {
                 }
 
                 // look for wrapper tx to link to
-                let txs = query(&format!("SELECT * FROM {0}.transactions WHERE block_id IN (SELECT block_id FROM {0}.blocks WHERE header_height = {1});", network, block_height-1))
+                let txs: Vec<Row> = query(&format!("SELECT * FROM {0}.transactions WHERE block_id IN (SELECT block_id FROM {0}.blocks WHERE header_height = {1});", network, block_height-1))
                     .fetch_all(&mut *sqlx_tx)
                     .await?;
                 txid_wrapper = txs[i].try_get("hash")?;
@@ -863,7 +864,7 @@ impl Database {
                 let code_hex = hex::encode(code.as_slice());
                 let unknown_type = "unknown".to_string();
                 let type_tx = CHECKSUMS.get(&code_hex).unwrap_or(&unknown_type);
-		code_type = type_tx.to_string();																						
+		        code_type = type_tx.to_string();
 
 														
 
@@ -911,6 +912,13 @@ impl Database {
                         }
                         "tx_bond" => {
                             let bond = Bond::try_from_slice(&data[..])?;
+
+																							   
+														
+										  
+											  
+										   
+										   
                             data_json = serde_json::to_value(bond)?;												
 																							   
 														
@@ -1049,6 +1057,8 @@ impl Database {
 									   
 							   
 
+																					   
+
                             let tx_vote_proposal = VoteProposalData::try_from_slice(&data[..])?;
                             data_json = serde_json::to_value(tx_vote_proposal)?;
 																							  
@@ -1149,6 +1159,15 @@ impl Database {
                         "tx_claim_rewards" => {
                             let tx_claim_rewards = Withdraw::try_from_slice(&data[..])?;
                             data_json = serde_json::to_value(tx_claim_rewards)?;
+																								  
+																	  
+														 
+																					  
+																						  
+									  
+											 
+																	
+							 
                         }
                         "tx_deactivate_validator" => {
                             let tx_deactivate_validator = Address::try_from_slice(&data[..])?;
@@ -1511,10 +1530,12 @@ impl Database {
 																				
 
 						 
+					   
+							   
             .bind(address)
 							   
 								
-            .fetch_all(&*self.pool)
+            .fetch_one(&*self.pool)
             .await
             .map_err(Error::from)
     }
@@ -1820,7 +1841,7 @@ impl Database {
             .map_err(Error::from)
     }
 
-    pub async fn vote_proposal_data(&self, proposal_id: i64) -> Result<Vec<Row>, Error> {
+    pub async fn vote_proposal_data(&self, proposal_id: u64) -> Result<Option<Row>, Error> {
         let query = format!(
             "SELECT data FROM {}.transactions WHERE code = '\\xccdbe81f664ca6c2caa11426927093dc10ed95e75b3f2f45bffd8514fee47cd0' AND (data->>'id')::int = $1;",
             self.network
@@ -1828,11 +1849,11 @@ impl Database {
 
         // Execute the query and fetch the first row (if any)
         sqlx::query(&query)
-            .bind(proposal_id)
+            .bind(proposal_id).to_be_bytes())
             .fetch_optional(&*self.pool)
             .await
-            .map_err(Error::from)										
-	    }			  
+            .map_err(Error::from)
+	}
 
     pub async fn vote_proposal_delegations(&self, proposal_id: u64) -> Result<Vec<Row>, Error> {
         let q = format!(
@@ -1843,7 +1864,7 @@ impl Database {
         );
 
         query(&q)
-            .bind(proposal_id.to_be_bytes())																				
+            .bind(proposal_id.to_be_bytes())
             .fetch_all(&*self.pool)
             .await
             .map_err(Error::from)
